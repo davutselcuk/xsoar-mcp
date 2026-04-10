@@ -27,5 +27,8 @@ jobs:
       - name: Import check
         run: python -c "from xsoar_mcp.server import mcp; print('MCP server import OK')"
 
+      - name: Run tests
+        run: pytest tests/ -v
+
       - name: Lint
         run: ruff check src/

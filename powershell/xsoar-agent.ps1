@@ -12,6 +12,31 @@ try {
     chcp 65001 | Out-Null
 } catch {}
 
+# ── .env loader ──────────────────────────────────────────────────────────────
+# Reads a .env file from the script directory (or current directory) and sets
+# matching script-scope variables, overriding the defaults below.
+# Copy .env.example → .env and fill in your values to avoid editing this file.
+
+function Import-DotEnv {
+    $candidates = @(
+        (Join-Path $PSScriptRoot ".env"),
+        (Join-Path (Get-Location) ".env")
+    )
+    $envFile = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $envFile) { return }
+
+    Write-Host "  [.env] Loading $envFile" -ForegroundColor DarkGray
+    Get-Content $envFile | ForEach-Object {
+        $line = $_.Trim()
+        if (-not $line -or $line.StartsWith("#")) { return }
+        $idx = $line.IndexOf("=")
+        if ($idx -le 0) { return }
+        $key   = $line.Substring(0, $idx).Trim()
+        $value = $line.Substring($idx + 1).Trim().Trim('"').Trim("'")
+        Set-Variable -Name $key -Value $value -Scope Script
+    }
+}
+
 # ============================================================
 #  CONFIGURATION — fill in only the providers you want to use
 # ============================================================
@@ -79,6 +104,9 @@ $LMSTUDIO_URL   = "http://localhost:1234"
 $LMSTUDIO_MODEL = "local-model-name"
 # ============================================================
 
+# Load .env file (overrides defaults above)
+Import-DotEnv
+
 # SSL bypass (for self-signed XSOAR certificates)
 if (-not $XSOAR_SSL) {
     if ($PSVersionTable.PSVersion.Major -ge 7) {
@@ -99,6 +127,7 @@ function Invoke-XSOAR {
         "Authorization" = $XSOAR_API_KEY
         "Content-Type"  = "application/json"
         "Accept"        = "application/json"
+        "x-xdr-auth-id" = "1"               # required for XSOAR v6
     }
     $params = @{
         Method  = $Method
