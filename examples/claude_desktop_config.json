@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "xsoar": {
+      "command": "uvx",
+      "args": ["xsoar-mcp"],
+      "env": {
+        "XSOAR_URL": "https://your-xsoar-server.company.com",
+        "XSOAR_API_KEY": "your-api-key-here",
+        "XSOAR_VERIFY_SSL": "true"
+      }
+    }
+  }
+}
