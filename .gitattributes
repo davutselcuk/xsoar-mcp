@@ -1,0 +1,2 @@
+# Tell GitHub Linguist to not count PowerShell as the primary language
+powershell/*.ps1 linguist-detectable=false
