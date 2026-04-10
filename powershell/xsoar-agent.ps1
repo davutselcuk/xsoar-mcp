@@ -13,35 +13,71 @@ try {
 } catch {}
 
 # ============================================================
-#  CONFIGURATION — edit these values
+#  CONFIGURATION — fill in only the providers you want to use
 # ============================================================
+$XSOAR_URL     = "https://your-xsoar-server.company.com"
 $XSOAR_API_KEY = "YOUR_XSOAR_API_KEY_HERE"
+$XSOAR_SSL     = $false   # $true if your certificate is trusted
 
-# Which AI provider to use: "azure", "local", or "claude"
-$AI_PROVIDER = "azure"
+# Default provider (can also be selected interactively at startup):
+# openai | azure | claude | gemini | groq | mistral | together |
+# deepseek | perplexity | xai | cohere | ollama | lmstudio
+$AI_PROVIDER = "openai"
 
-# --- Azure APIM (if AI_PROVIDER = "azure") ---
-$APIM_API_KEY  = "YOUR_APIM_API_KEY_HERE"
+# --- OpenAI ---                       https://platform.openai.com/api-keys
+$OPENAI_API_KEY = "sk-..."
+$OPENAI_MODEL   = "gpt-4o"
 
-# --- Local LLM (if AI_PROVIDER = "local") ---
-$LOCAL_URL     = "http://localhost:1234/v1/chat/completions"  # LM Studio / Ollama default
-$LOCAL_API_KEY = "lm-studio"                                  # not required by most local LLMs
-$LOCAL_MODEL   = "your-local-model-name"                      # model loaded in LM Studio / Ollama
+# --- Azure OpenAI (APIM) ---
+$AZURE_API_KEY    = "YOUR_APIM_KEY_HERE"
+$AZURE_ENDPOINT   = "https://your-apim.azure-api.net/your-deployment"
+$AZURE_DEPLOYMENT = "gpt-4o"
+$AZURE_API_VER    = "2024-02-01"
 
-# --- Claude / Anthropic (if AI_PROVIDER = "claude") ---
-$CLAUDE_API_KEY = "YOUR_ANTHROPIC_API_KEY_HERE"               # https://console.anthropic.com
-$CLAUDE_MODEL   = "claude-sonnet-4-6"                         # or claude-opus-4-6, claude-haiku-4-5
+# --- Claude (Anthropic) ---           https://console.anthropic.com/settings/keys
+$CLAUDE_API_KEY = "sk-ant-..."
+$CLAUDE_MODEL   = "claude-sonnet-4-6"   # claude-opus-4-6 | claude-haiku-4-5
+
+# --- Google Gemini ---                https://aistudio.google.com/app/apikey
+$GEMINI_API_KEY = "AIza..."
+$GEMINI_MODEL   = "gemini-2.0-flash"
+
+# --- Groq ---                         https://console.groq.com/keys
+$GROQ_API_KEY = "gsk_..."
+$GROQ_MODEL   = "llama-3.3-70b-versatile"
+
+# --- Mistral AI ---                   https://console.mistral.ai/api-keys
+$MISTRAL_API_KEY = "..."
+$MISTRAL_MODEL   = "mistral-large-latest"
+
+# --- Together AI ---                  https://api.together.ai/settings/api-keys
+$TOGETHER_API_KEY = "..."
+$TOGETHER_MODEL   = "meta-llama/Llama-3-70b-chat-hf"
+
+# --- DeepSeek ---                     https://platform.deepseek.com/api_keys
+$DEEPSEEK_API_KEY = "sk-..."
+$DEEPSEEK_MODEL   = "deepseek-chat"
+
+# --- Perplexity AI ---                https://www.perplexity.ai/settings/api
+$PERPLEXITY_API_KEY = "pplx-..."
+$PERPLEXITY_MODEL   = "llama-3.1-sonar-large-128k-online"
+
+# --- xAI (Grok) ---                   https://console.x.ai
+$XAI_API_KEY = "xai-..."
+$XAI_MODEL   = "grok-3-mini"
+
+# --- Cohere ---                       https://dashboard.cohere.com/api-keys
+$COHERE_API_KEY = "..."
+$COHERE_MODEL   = "command-r-plus"
+
+# --- Ollama (local) ---               https://ollama.com
+$OLLAMA_URL   = "http://localhost:11434"
+$OLLAMA_MODEL = "llama3.3"
+
+# --- LM Studio (local) ---            https://lmstudio.ai
+$LMSTUDIO_URL   = "http://localhost:1234"
+$LMSTUDIO_MODEL = "local-model-name"
 # ============================================================
-
-# --- Edit below only if needed ---
-$XSOAR_URL        = "https://your-xsoar-server.company.com"
-$XSOAR_SSL        = $false
-$APIM_ENDPOINT    = "https://your-apim.azure-api.net/your-deployment"
-$APIM_DEPLOYMENT  = "gpt-4o"
-$APIM_API_VERSION = "2024-02-01"
-$APIM_AUTH_HEADER = "api-key"
-$APIM_URL = "$APIM_ENDPOINT/openai/deployments/$APIM_DEPLOYMENT/chat/completions"
-# ---------------------------------
 
 # SSL bypass (for self-signed XSOAR certificates)
 if (-not $XSOAR_SSL) {
@@ -336,10 +372,8 @@ function Invoke-Tool {
 }
 
 # -- AI API CALL ----------------------------------------------
-
-# -- CLAUDE API HELPERS ---------------------------------------
-# Claude uses a different API format; these convert to/from OpenAI format
-# so the main agent loop stays unchanged.
+# Claude uses a different API format; these helpers convert to/from OpenAI
+# format so the main agent loop stays unchanged for all providers.
 
 function Convert-ToolsForClaude($Tools) {
     # OpenAI tools → Anthropic tools (input_schema instead of parameters)
@@ -425,7 +459,7 @@ function Convert-ClaudeResponseToOpenAI($Response) {
 function Invoke-AI {
     param($Messages)
 
-    # ── Claude (Anthropic) ────────────────────────────────────
+    # ── Claude (Anthropic native API) ─────────────────────────
     if ($AI_PROVIDER -eq "claude") {
         $converted = Convert-MessagesForClaude $Messages
         $body = @{
@@ -453,52 +487,76 @@ function Invoke-AI {
         }
         if ($PSVersionTable.PSVersion.Major -ge 7) { $params.SkipCertificateCheck = $true }
         try {
-            $raw      = Invoke-WebRequest @params
-            $text     = [System.Text.Encoding]::UTF8.GetString($raw.RawContentStream.ToArray())
+            $raw        = Invoke-WebRequest @params
+            $text       = [System.Text.Encoding]::UTF8.GetString($raw.RawContentStream.ToArray())
             $claudeResp = $text | ConvertFrom-Json
             return Convert-ClaudeResponseToOpenAI $claudeResp
         } catch {
             $code    = $_.Exception.Response.StatusCode.value__
             $errBody = ""
             try { if ($_.ErrorDetails.Message) { $errBody = $_.ErrorDetails.Message } } catch {}
-            Write-Host ""
             Write-Host "  [DEBUG] URL: $uri" -ForegroundColor DarkCyan
             throw "Claude API error ($code): $($_.Exception.Message) $errBody"
         }
     }
 
-    # ── OpenAI-compatible (Azure APIM / Local LLM) ────────────
-    $body = @{
-        messages    = $Messages
-        tools       = $TOOLS
-        tool_choice = "auto"
-    }
-
-    if ($AI_PROVIDER -eq "local") {
-        $body.model = $LOCAL_MODEL
-        $headers = @{
-            "Authorization" = "Bearer $LOCAL_API_KEY"
-            "Content-Type"  = "application/json"
+    # ── Azure OpenAI (APIM — custom header + api-version) ─────
+    if ($AI_PROVIDER -eq "azure") {
+        $uri = "$AZURE_ENDPOINT/openai/deployments/$AZURE_DEPLOYMENT/chat/completions"
+        if ($AZURE_API_VER -and ($uri -notmatch "api-version=")) {
+            $sep = if ($uri.Contains("?")) { "&" } else { "?" }
+            $uri = "$uri${sep}api-version=$AZURE_API_VER"
         }
-        $uri = $LOCAL_URL
+        $headers = @{ "api-key"="$AZURE_API_KEY"; "Content-Type"="application/json" }
+        $body    = @{ messages=$Messages; tools=$TOOLS; tool_choice="auto" }
     }
     else {
-        # Azure APIM
-        $headers = @{
-            $APIM_AUTH_HEADER = $APIM_API_KEY
-            "Content-Type"    = "application/json"
+        # ── All other OpenAI-compatible providers ──────────────
+        $urlMap = @{
+            "openai"     = "https://api.openai.com/v1/chat/completions"
+            "gemini"     = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+            "groq"       = "https://api.groq.com/openai/v1/chat/completions"
+            "mistral"    = "https://api.mistral.ai/v1/chat/completions"
+            "together"   = "https://api.together.xyz/v1/chat/completions"
+            "deepseek"   = "https://api.deepseek.com/v1/chat/completions"
+            "perplexity" = "https://api.perplexity.ai/chat/completions"
+            "xai"        = "https://api.x.ai/v1/chat/completions"
+            "cohere"     = "https://api.cohere.com/compatibility/v1/chat/completions"
+            "ollama"     = "$OLLAMA_URL/v1/chat/completions"
+            "lmstudio"   = "$LMSTUDIO_URL/v1/chat/completions"
         }
-        if ($APIM_API_VERSION -and ($APIM_URL -notmatch "api-version=")) {
-            $sep = if ($APIM_URL.Contains("?")) { "&" } else { "?" }
-            $uri = "$APIM_URL${sep}api-version=$APIM_API_VERSION"
-        } else {
-            $uri = $APIM_URL
+        $keyMap = @{
+            "openai"     = $OPENAI_API_KEY
+            "gemini"     = $GEMINI_API_KEY
+            "groq"       = $GROQ_API_KEY
+            "mistral"    = $MISTRAL_API_KEY
+            "together"   = $TOGETHER_API_KEY
+            "deepseek"   = $DEEPSEEK_API_KEY
+            "perplexity" = $PERPLEXITY_API_KEY
+            "xai"        = $XAI_API_KEY
+            "cohere"     = $COHERE_API_KEY
+            "ollama"     = "ollama"
+            "lmstudio"   = "lm-studio"
         }
+        $modelMap = @{
+            "openai"     = $OPENAI_MODEL
+            "gemini"     = $GEMINI_MODEL
+            "groq"       = $GROQ_MODEL
+            "mistral"    = $MISTRAL_MODEL
+            "together"   = $TOGETHER_MODEL
+            "deepseek"   = $DEEPSEEK_MODEL
+            "perplexity" = $PERPLEXITY_MODEL
+            "xai"        = $XAI_MODEL
+            "cohere"     = $COHERE_MODEL
+            "ollama"     = $OLLAMA_MODEL
+            "lmstudio"   = $LMSTUDIO_MODEL
+        }
+        $uri     = $urlMap[$AI_PROVIDER]
+        $headers = @{ "Authorization"="Bearer $($keyMap[$AI_PROVIDER])"; "Content-Type"="application/json" }
+        $body    = @{ model=$modelMap[$AI_PROVIDER]; messages=$Messages; tools=$TOOLS; tool_choice="auto" }
     }
 
-    $jsonBody  = $body | ConvertTo-Json -Depth 20
-    $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($jsonBody)
-
+    $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes(($body | ConvertTo-Json -Depth 20))
     $params = @{
         Method          = "POST"
         Uri             = $uri
@@ -507,9 +565,7 @@ function Invoke-AI {
         ContentType     = "application/json; charset=utf-8"
         UseBasicParsing = $true
     }
-    if ($PSVersionTable.PSVersion.Major -ge 7) {
-        $params.SkipCertificateCheck = $true
-    }
+    if ($PSVersionTable.PSVersion.Major -ge 7) { $params.SkipCertificateCheck = $true }
     try {
         $raw  = Invoke-WebRequest @params
         $text = [System.Text.Encoding]::UTF8.GetString($raw.RawContentStream.ToArray())
@@ -518,7 +574,6 @@ function Invoke-AI {
         $code    = $_.Exception.Response.StatusCode.value__
         $errBody = ""
         try { if ($_.ErrorDetails.Message) { $errBody = $_.ErrorDetails.Message } } catch {}
-        Write-Host ""
         Write-Host "  [DEBUG] URL: $uri" -ForegroundColor DarkCyan
         throw "AI API error ($code): $($_.Exception.Message) $errBody"
     }
@@ -539,23 +594,54 @@ Write-Host "  XSOAR AI Agent (PowerShell)" -ForegroundColor Cyan
 Write-Host "  Type 'exit' or press Ctrl+C to quit" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 
-# --- AI provider selection (interactive) ---
+# --- Interactive provider selection ---
 Write-Host ""
-Write-Host "Select AI provider:" -ForegroundColor Yellow
-Write-Host "  [1] Azure APIM (default)" -ForegroundColor Gray
-Write-Host "  [2] Local LLM  (LM Studio / Ollama)" -ForegroundColor Gray
-Write-Host "  [3] Claude     (Anthropic)" -ForegroundColor Gray
-Write-Host "Choice (1/2/3, Enter = 1): " -ForegroundColor Yellow -NoNewline
+Write-Host "Select AI provider (or press Enter for default: $AI_PROVIDER):" -ForegroundColor Yellow
+Write-Host "  [1]  OpenAI" -ForegroundColor Gray
+Write-Host "  [2]  Azure OpenAI (APIM)" -ForegroundColor Gray
+Write-Host "  [3]  Claude (Anthropic)" -ForegroundColor Gray
+Write-Host "  [4]  Google Gemini" -ForegroundColor Gray
+Write-Host "  [5]  Groq" -ForegroundColor Gray
+Write-Host "  [6]  Mistral AI" -ForegroundColor Gray
+Write-Host "  [7]  Together AI" -ForegroundColor Gray
+Write-Host "  [8]  DeepSeek" -ForegroundColor Gray
+Write-Host "  [9]  Perplexity AI" -ForegroundColor Gray
+Write-Host "  [10] xAI (Grok)" -ForegroundColor Gray
+Write-Host "  [11] Cohere" -ForegroundColor Gray
+Write-Host "  [12] Ollama (local)" -ForegroundColor Gray
+Write-Host "  [13] LM Studio (local)" -ForegroundColor Gray
+Write-Host "Choice: " -ForegroundColor Yellow -NoNewline
 $providerChoice = Read-Host
 switch ($providerChoice.Trim()) {
-    "2"      { $AI_PROVIDER = "local" }
-    "local"  { $AI_PROVIDER = "local" }
-    "3"      { $AI_PROVIDER = "claude" }
-    "claude" { $AI_PROVIDER = "claude" }
-    "azure"  { $AI_PROVIDER = "azure" }
-    default  { $AI_PROVIDER = "azure" }
+    "1"           { $AI_PROVIDER = "openai" }
+    "openai"      { $AI_PROVIDER = "openai" }
+    "2"           { $AI_PROVIDER = "azure" }
+    "azure"       { $AI_PROVIDER = "azure" }
+    "3"           { $AI_PROVIDER = "claude" }
+    "claude"      { $AI_PROVIDER = "claude" }
+    "4"           { $AI_PROVIDER = "gemini" }
+    "gemini"      { $AI_PROVIDER = "gemini" }
+    "5"           { $AI_PROVIDER = "groq" }
+    "groq"        { $AI_PROVIDER = "groq" }
+    "6"           { $AI_PROVIDER = "mistral" }
+    "mistral"     { $AI_PROVIDER = "mistral" }
+    "7"           { $AI_PROVIDER = "together" }
+    "together"    { $AI_PROVIDER = "together" }
+    "8"           { $AI_PROVIDER = "deepseek" }
+    "deepseek"    { $AI_PROVIDER = "deepseek" }
+    "9"           { $AI_PROVIDER = "perplexity" }
+    "perplexity"  { $AI_PROVIDER = "perplexity" }
+    "10"          { $AI_PROVIDER = "xai" }
+    "xai"         { $AI_PROVIDER = "xai" }
+    "11"          { $AI_PROVIDER = "cohere" }
+    "cohere"      { $AI_PROVIDER = "cohere" }
+    "12"          { $AI_PROVIDER = "ollama" }
+    "ollama"      { $AI_PROVIDER = "ollama" }
+    "13"          { $AI_PROVIDER = "lmstudio" }
+    "lmstudio"    { $AI_PROVIDER = "lmstudio" }
+    default       { <# keep $AI_PROVIDER as configured #> }
 }
-Write-Host ("  -> AI provider: {0}" -f $AI_PROVIDER) -ForegroundColor DarkCyan
+Write-Host ("  -> Using: {0}" -f $AI_PROVIDER) -ForegroundColor DarkCyan
 
 while ($true) {
     Write-Host ""
