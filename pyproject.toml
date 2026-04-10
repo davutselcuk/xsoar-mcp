@@ -37,9 +37,9 @@ dev = [
 xsoar-mcp = "xsoar_mcp.server:main"
 
 [project.urls]
-Homepage = "https://github.com/YOUR_USERNAME/xsoar-mcp"
-Repository = "https://github.com/YOUR_USERNAME/xsoar-mcp"
-Issues = "https://github.com/YOUR_USERNAME/xsoar-mcp/issues"
+Homepage = "https://github.com/davutselcuk/xsoar-mcp"
+Repository = "https://github.com/davutselcuk/xsoar-mcp"
+Issues = "https://github.com/davutselcuk/xsoar-mcp/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/xsoar_mcp"]
