@@ -17,7 +17,7 @@ try {
 # ============================================================
 $XSOAR_API_KEY = "YOUR_XSOAR_API_KEY_HERE"
 
-# Which AI provider to use: "azure" or "local"
+# Which AI provider to use: "azure", "local", or "claude"
 $AI_PROVIDER = "azure"
 
 # --- Azure APIM (if AI_PROVIDER = "azure") ---
@@ -27,6 +27,10 @@ $APIM_API_KEY  = "YOUR_APIM_API_KEY_HERE"
 $LOCAL_URL     = "http://localhost:1234/v1/chat/completions"  # LM Studio / Ollama default
 $LOCAL_API_KEY = "lm-studio"                                  # not required by most local LLMs
 $LOCAL_MODEL   = "your-local-model-name"                      # model loaded in LM Studio / Ollama
+
+# --- Claude / Anthropic (if AI_PROVIDER = "claude") ---
+$CLAUDE_API_KEY = "YOUR_ANTHROPIC_API_KEY_HERE"               # https://console.anthropic.com
+$CLAUDE_MODEL   = "claude-sonnet-4-6"                         # or claude-opus-4-6, claude-haiku-4-5
 # ============================================================
 
 # --- Edit below only if needed ---
@@ -333,9 +337,137 @@ function Invoke-Tool {
 
 # -- AI API CALL ----------------------------------------------
 
+# -- CLAUDE API HELPERS ---------------------------------------
+# Claude uses a different API format; these convert to/from OpenAI format
+# so the main agent loop stays unchanged.
+
+function Convert-ToolsForClaude($Tools) {
+    # OpenAI tools → Anthropic tools (input_schema instead of parameters)
+    return @($Tools | ForEach-Object {
+        @{
+            name         = $_.function.name
+            description  = $_.function.description
+            input_schema = $_.function.parameters
+        }
+    })
+}
+
+function Convert-MessagesForClaude($Messages) {
+    # Returns @{ system=string; messages=array }
+    # Converts tool role and tool_calls to Anthropic format
+    $system   = ""
+    $converted = [System.Collections.ArrayList]@()
+
+    foreach ($msg in $Messages) {
+        if ($msg.role -eq "system") {
+            $system = $msg.content
+            continue
+        }
+
+        if ($msg.role -eq "tool") {
+            # Group consecutive tool results into a single user message
+            $last = if ($converted.Count -gt 0) { $converted[$converted.Count - 1] } else { $null }
+            $toolBlock = @{ type="tool_result"; tool_use_id=$msg.tool_call_id; content=$msg.content }
+            if ($last -and $last.role -eq "user" -and $last.content -is [array]) {
+                $last.content += $toolBlock
+            } else {
+                $converted.Add(@{ role="user"; content=@($toolBlock) }) | Out-Null
+            }
+            continue
+        }
+
+        if ($msg.role -eq "assistant" -and $msg.tool_calls) {
+            $content = [System.Collections.ArrayList]@()
+            if ($msg.content) { $content.Add(@{ type="text"; text=$msg.content }) | Out-Null }
+            foreach ($tc in $msg.tool_calls) {
+                $input = $tc.function.arguments | ConvertFrom-Json -ErrorAction SilentlyContinue
+                if (-not $input) { $input = @{} }
+                $content.Add(@{ type="tool_use"; id=$tc.id; name=$tc.function.name; input=$input }) | Out-Null
+            }
+            $converted.Add(@{ role="assistant"; content=$content.ToArray() }) | Out-Null
+            continue
+        }
+
+        $converted.Add(@{ role=$msg.role; content=$msg.content }) | Out-Null
+    }
+
+    return @{ system=$system; messages=$converted.ToArray() }
+}
+
+function Convert-ClaudeResponseToOpenAI($Response) {
+    # Normalize Anthropic response → OpenAI-like shape so main loop is unchanged
+    $text       = ""
+    $tool_calls = [System.Collections.ArrayList]@()
+
+    foreach ($block in $Response.content) {
+        if ($block.type -eq "text") { $text = $block.text }
+        elseif ($block.type -eq "tool_use") {
+            $tool_calls.Add(@{
+                id       = $block.id
+                type     = "function"
+                function = @{
+                    name      = $block.name
+                    arguments = ($block.input | ConvertTo-Json -Depth 10 -Compress)
+                }
+            }) | Out-Null
+        }
+    }
+
+    $msg = @{ role="assistant" }
+    if ($text)                    { $msg.content    = $text }
+    if ($tool_calls.Count -gt 0) { $msg.tool_calls = $tool_calls.ToArray() }
+
+    return @{ choices = @(@{ message = $msg }) }
+}
+
+# -------------------------------------------------------------
+
 function Invoke-AI {
     param($Messages)
 
+    # ── Claude (Anthropic) ────────────────────────────────────
+    if ($AI_PROVIDER -eq "claude") {
+        $converted = Convert-MessagesForClaude $Messages
+        $body = @{
+            model      = $CLAUDE_MODEL
+            max_tokens = 4096
+            system     = $converted.system
+            messages   = $converted.messages
+            tools      = Convert-ToolsForClaude $TOOLS
+        }
+        $headers = @{
+            "x-api-key"         = $CLAUDE_API_KEY
+            "anthropic-version" = "2023-06-01"
+            "Content-Type"      = "application/json"
+        }
+        $uri = "https://api.anthropic.com/v1/messages"
+
+        $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes(($body | ConvertTo-Json -Depth 20))
+        $params = @{
+            Method          = "POST"
+            Uri             = $uri
+            Headers         = $headers
+            Body            = $bodyBytes
+            ContentType     = "application/json; charset=utf-8"
+            UseBasicParsing = $true
+        }
+        if ($PSVersionTable.PSVersion.Major -ge 7) { $params.SkipCertificateCheck = $true }
+        try {
+            $raw      = Invoke-WebRequest @params
+            $text     = [System.Text.Encoding]::UTF8.GetString($raw.RawContentStream.ToArray())
+            $claudeResp = $text | ConvertFrom-Json
+            return Convert-ClaudeResponseToOpenAI $claudeResp
+        } catch {
+            $code    = $_.Exception.Response.StatusCode.value__
+            $errBody = ""
+            try { if ($_.ErrorDetails.Message) { $errBody = $_.ErrorDetails.Message } } catch {}
+            Write-Host ""
+            Write-Host "  [DEBUG] URL: $uri" -ForegroundColor DarkCyan
+            throw "Claude API error ($code): $($_.Exception.Message) $errBody"
+        }
+    }
+
+    # ── OpenAI-compatible (Azure APIM / Local LLM) ────────────
     $body = @{
         messages    = $Messages
         tools       = $TOOLS
@@ -412,13 +544,16 @@ Write-Host ""
 Write-Host "Select AI provider:" -ForegroundColor Yellow
 Write-Host "  [1] Azure APIM (default)" -ForegroundColor Gray
 Write-Host "  [2] Local LLM  (LM Studio / Ollama)" -ForegroundColor Gray
-Write-Host "Choice (1/2, Enter = 1): " -ForegroundColor Yellow -NoNewline
+Write-Host "  [3] Claude     (Anthropic)" -ForegroundColor Gray
+Write-Host "Choice (1/2/3, Enter = 1): " -ForegroundColor Yellow -NoNewline
 $providerChoice = Read-Host
 switch ($providerChoice.Trim()) {
-    "2"     { $AI_PROVIDER = "local" }
-    "local" { $AI_PROVIDER = "local" }
-    "azure" { $AI_PROVIDER = "azure" }
-    default { $AI_PROVIDER = "azure" }
+    "2"      { $AI_PROVIDER = "local" }
+    "local"  { $AI_PROVIDER = "local" }
+    "3"      { $AI_PROVIDER = "claude" }
+    "claude" { $AI_PROVIDER = "claude" }
+    "azure"  { $AI_PROVIDER = "azure" }
+    default  { $AI_PROVIDER = "azure" }
 }
 Write-Host ("  -> AI provider: {0}" -f $AI_PROVIDER) -ForegroundColor DarkCyan
 
