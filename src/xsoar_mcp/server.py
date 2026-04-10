@@ -6,9 +6,9 @@ Compatible with XSOAR v6.x.
 
 import os
 from typing import Any
-from mcp.server.fastmcp import FastMCP
 
-from .client import XSOARClient
+import httpx
+from mcp.server.fastmcp import FastMCP
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 XSOAR_URL = os.environ.get("XSOAR_URL", "").rstrip("/")
@@ -23,8 +23,6 @@ mcp = FastMCP(
         "Incident management, playbook execution, indicator search, and more."
     ),
 )
-
-import httpx
 
 
 def _client() -> httpx.Client:

@@ -22,6 +22,7 @@ class XSOARClient:
             "Authorization": self.api_key,
             "Content-Type": "application/json",
             "Accept": "application/json",
+            "x-xdr-auth-id": "1",  # required for XSOAR v6
         }
 
     def request(self, method: str, path: str, **kwargs) -> Any:
