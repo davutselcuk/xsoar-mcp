@@ -1,0 +1,40 @@
+name: Feature request
+description: Suggest a new tool, resource, prompt, or provider
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - New MCP tool
+        - New MCP resource
+        - New MCP prompt
+        - New AI provider
+        - PowerShell agent improvement
+        - Packaging / distribution
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / use case
+      description: What are you trying to accomplish that the current version can't do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What API, command, or UX would solve this?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

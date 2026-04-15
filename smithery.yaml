@@ -1,0 +1,67 @@
+name: xsoar-mcp
+description: |
+  MCP server for Palo Alto Cortex XSOAR. Manage incidents, run playbooks,
+  execute integration commands, and investigate indicators — all through
+  natural language via any MCP-compatible AI assistant.
+
+version: 0.2.0
+license: MIT
+repository: https://github.com/davutselcuk/xsoar-mcp
+homepage: https://github.com/davutselcuk/xsoar-mcp
+
+runtime: python
+startCommand:
+  type: stdio
+  command: uvx
+  args: [xsoar-mcp]
+
+configSchema:
+  type: object
+  required: [XSOAR_URL, XSOAR_API_KEY]
+  properties:
+    XSOAR_URL:
+      type: string
+      title: XSOAR server URL
+      description: "Base URL of your XSOAR instance (e.g. https://xsoar.company.com)"
+    XSOAR_API_KEY:
+      type: string
+      title: XSOAR API key
+      description: API key generated in XSOAR Settings → API Keys
+      format: password
+    XSOAR_VERIFY_SSL:
+      type: string
+      title: Verify SSL certificates
+      description: "Set to 'false' for self-signed certificates"
+      default: "true"
+      enum: ["true", "false"]
+    XSOAR_READ_ONLY:
+      type: string
+      title: Read-only mode
+      description: "Set to 'true' to disable all write tools"
+      default: "false"
+      enum: ["true", "false"]
+    XSOAR_DEBUG:
+      type: string
+      title: Debug logging
+      default: "false"
+      enum: ["true", "false"]
+
+capabilities:
+  tools: true
+  resources: true
+  prompts: true
+
+categories:
+  - security
+  - incident-response
+  - threat-intelligence
+
+keywords:
+  - xsoar
+  - cortex
+  - soar
+  - palo-alto
+  - security
+  - incident-response
+  - threat-intelligence
+  - siem

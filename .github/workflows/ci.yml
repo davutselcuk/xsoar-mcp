@@ -8,10 +8,12 @@ on:
 
 jobs:
   test:
+    name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11", "3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v4
@@ -20,15 +22,34 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
 
       - name: Install package
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,agent]"
 
       - name: Import check
         run: python -c "from xsoar_mcp.server import mcp; print('MCP server import OK')"
 
-      - name: Run tests
-        run: pytest tests/ -v
-
       - name: Lint
-        run: ruff check src/
+        run: ruff check src/ tests/
+
+      - name: Run tests with coverage
+        run: pytest tests/ --cov --cov-report=xml --cov-report=term
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.xml
+          fail_ci_if_error: false
+        continue-on-error: true
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t xsoar-mcp:ci .
+      - name: Smoke test
+        run: docker run --rm --entrypoint python xsoar-mcp:ci -c "from xsoar_mcp.server import mcp; print('OK')"

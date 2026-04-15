@@ -5,6 +5,7 @@ Used by the Python CLI agent (agent.py).
 
 import json
 from xsoar_mcp.client import XSOARClient
+from xsoar_mcp.utils import fmt_incident
 
 # ── Tool Definitions (OpenAI tools format) ────────────────────────────────────
 
@@ -205,26 +206,6 @@ TOOLS = [
 
 # ── Tool Execution ────────────────────────────────────────────────────────────
 
-_SEVERITY = {0: "Unknown", 1: "Low", 2: "Medium", 3: "High", 4: "Critical"}
-_STATUS = {0: "Pending", 1: "Active", 2: "Closed", 3: "Archived"}
-
-
-def _fmt_incident(i: dict) -> dict:
-    return {
-        "id": i.get("id"),
-        "name": i.get("name"),
-        "type": i.get("type"),
-        "severity": _SEVERITY.get(i.get("severity", 0)),
-        "status": _STATUS.get(i.get("status", 0)),
-        "owner": i.get("owner"),
-        "occurred": i.get("occurred"),
-        "created": i.get("created"),
-        "details": (i.get("details") or "")[:400],
-        "playbook": i.get("playbookId"),
-        "close_reason": i.get("closeReason"),
-    }
-
-
 def execute_tool(tool_name: str, args: dict, client: XSOARClient) -> str:
     """Execute a tool called by the AI; returns result as JSON string."""
     try:
@@ -250,11 +231,11 @@ def _dispatch(name: str, args: dict, client: XSOARClient) -> dict:
         return {
             "total": r.get("total", len(incidents)),
             "returned": len(incidents),
-            "incidents": [_fmt_incident(i) for i in incidents],
+            "incidents": [fmt_incident(i) for i in incidents],
         }
 
     elif name == "get_incident":
-        return _fmt_incident(client.get_incident(args["incident_id"]))
+        return fmt_incident(client.get_incident(args["incident_id"]))
 
     elif name == "create_incident":
         r = client.create_incident(

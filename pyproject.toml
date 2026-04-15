@@ -4,20 +4,28 @@ build-backend = "hatchling.build"
 
 [project]
 name = "xsoar-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "MCP server for Palo Alto Cortex XSOAR — incident management, playbook execution, and IOC search via AI"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
-keywords = ["mcp", "xsoar", "soar", "security", "cortex", "palo-alto"]
+keywords = ["mcp", "xsoar", "soar", "security", "cortex", "palo-alto", "ai", "llm"]
+authors = [
+    { name = "Davut Selçuk" },
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Security",
+    "Topic :: System :: Monitoring",
+    "Typing :: Typed",
 ]
 dependencies = [
     "mcp[cli]>=1.0",
@@ -33,6 +41,8 @@ agent = [
 dev = [
     "ruff>=0.4.0",
     "pytest>=8.0",
+    "pytest-cov>=4.1.0",
+    "pre-commit>=3.6.0",
 ]
 
 [project.scripts]
@@ -42,6 +52,7 @@ xsoar-mcp = "xsoar_mcp.server:main"
 Homepage = "https://github.com/davutselcuk/xsoar-mcp"
 Repository = "https://github.com/davutselcuk/xsoar-mcp"
 Issues = "https://github.com/davutselcuk/xsoar-mcp/issues"
+Changelog = "https://github.com/davutselcuk/xsoar-mcp/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/xsoar_mcp"]
@@ -49,3 +60,24 @@ packages = ["src/xsoar_mcp"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["src/xsoar_mcp"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+show_missing = true

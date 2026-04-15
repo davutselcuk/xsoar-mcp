@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/davutselcuk/xsoar-mcp/security/advisories/new
+    about: Please report security issues privately, not in public issues.
+  - name: XSOAR product questions
+    url: https://live.paloaltonetworks.com/t5/cortex-xsoar/ct-p/Cortex_XSOAR
+    about: Questions about XSOAR itself belong on the Palo Alto community.
