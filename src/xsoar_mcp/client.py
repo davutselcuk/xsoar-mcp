@@ -209,6 +209,32 @@ class XSOARClient:
         """Get playbook task status (work plan) for an incident."""
         return self.request("GET", f"/xsoar/inv-playbook/{incident_id}")
 
+    # ── Playbook Task Management ──────────────────────────────────────────────
+
+    def complete_task(self, incident_id: str, task_id: str,
+                      input_data: dict | None = None) -> dict:
+        """Mark a playbook task as complete."""
+        body: dict = {"investigationId": incident_id, "taskId": task_id}
+        if input_data:
+            body["input"] = input_data
+        return self.request("POST", "/xsoar/inv-playbook/task/complete", json=body)
+
+    def assign_task(self, incident_id: str, task_id: str,
+                    assignee: str) -> dict:
+        """Assign a playbook task to a user."""
+        return self.request("POST", "/xsoar/inv-playbook/task/assign", json={
+            "investigationId": incident_id, "taskId": task_id,
+            "assignee": assignee,
+        })
+
+    def add_task_note(self, incident_id: str, task_id: str,
+                      text: str) -> dict:
+        """Add a note to a playbook task."""
+        return self.request("POST", "/xsoar/inv-playbook/task/note/add", json={
+            "investigationId": incident_id, "taskId": task_id,
+            "text": text,
+        })
+
     # ── Indicator ─────────────────────────────────────────────────────────────
 
     def search_indicators(self, query: str = "", ioc_type: str = "",
@@ -233,6 +259,25 @@ class XSOARClient:
         }
         return self.request("POST", "/xsoar/indicator/create", json=body)
 
+    def edit_indicator(self, indicator_id: str, score: int | None = None,
+                       comment: str | None = None,
+                       expiration: str | None = None) -> dict:
+        """Edit an existing indicator."""
+        body: dict = {"id": indicator_id}
+        if score is not None:
+            body["score"] = score
+        if comment is not None:
+            body["comment"] = comment
+        if expiration is not None:
+            body["expiration"] = expiration
+        return self.request("POST", "/xsoar/indicator/edit", json=body)
+
+    def whitelist_indicators(self, indicator_ids: list[str]) -> dict:
+        """Mark indicators as whitelisted (safe)."""
+        return self.request("POST", "/xsoar/indicator/whitelist", json={
+            "ids": indicator_ids,
+        })
+
     def delete_indicator(self, indicator_id: str) -> dict:
         return self.request("POST", "/xsoar/indicator/batchDelete", json={
             "ids": [indicator_id], "DONOTWHITELIST": False,
@@ -244,6 +289,78 @@ class XSOARClient:
         params = {"query": query} if query else {}
         return self.request("GET", "/xsoar/settings/integration/search",
                             params=params)
+
+    # ── Evidence ───────────────────────────────────────────────────────────────
+
+    def create_evidence(self, incident_id: str, description: str,
+                        data: str = "", tags: list[str] | None = None) -> dict:
+        """Add evidence to an incident's evidence board."""
+        body: dict = {
+            "investigationId": incident_id,
+            "description": description,
+            "data": data,
+        }
+        if tags:
+            body["tags"] = tags
+        return self.request("POST", "/xsoar/evidence", json=body)
+
+    def search_evidence(self, incident_id: str = "", query: str = "",
+                        size: int = 50) -> dict:
+        """Search evidence records."""
+        body: dict = {"filter": {"query": query, "size": size}}
+        if incident_id:
+            body["filter"]["investigationId"] = incident_id
+        return self.request("POST", "/xsoar/evidence/search", json=body)
+
+    # ── XSOAR Lists ──────────────────────────────────────────────────────────
+
+    def get_list(self, list_name: str) -> dict:
+        """Get a named XSOAR list (allow/block lists, lookup tables)."""
+        return self.request("GET", f"/xsoar/lists/download/{list_name}")
+
+    def save_list(self, list_name: str, data: str) -> dict:
+        """Create or update a named XSOAR list."""
+        return self.request("POST", "/xsoar/lists/save", json={
+            "id": list_name, "data": data,
+        })
+
+    def get_list_names(self) -> list:
+        """Get all list names."""
+        result = self.request("GET", "/xsoar/lists/names")
+        return result if isinstance(result, list) else []
+
+    # ── Automations / Scripts ─────────────────────────────────────────────────
+
+    def search_automations(self, query: str = "", size: int = 50) -> dict:
+        """Search available automations (scripts)."""
+        body: dict = {"query": query, "size": size}
+        return self.request("POST", "/xsoar/automation/search", json=body)
+
+    # ── Statistics / Dashboard ────────────────────────────────────────────────
+
+    def query_widget(self, widget_id: str) -> dict:
+        """Query dashboard widget data (incident counts, etc.)."""
+        return self.request("POST", "/xsoar/statistics/widgets/query", json={
+            "id": widget_id,
+        })
+
+    def query_statistics(self, query: str = "", aggregate_by: str = "type",
+                         size: int = 50) -> dict:
+        """Query incident statistics."""
+        body: dict = {
+            "filter": {"query": query, "size": size, "page": 0},
+            "field": aggregate_by,
+            "type": "incident",
+        }
+        return self.request("POST", "/xsoar/statistics/search", json=body)
+
+    # ── Audit Logs ────────────────────────────────────────────────────────────
+
+    def search_audit_logs(self, query: str = "", size: int = 50) -> dict:
+        """Query XSOAR audit trail."""
+        return self.request("POST", "/xsoar/settings/audits", json={
+            "filter": {"query": query, "size": size, "page": 0},
+        })
 
     # ── Other ─────────────────────────────────────────────────────────────────
 

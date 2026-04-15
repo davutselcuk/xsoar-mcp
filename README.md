@@ -17,13 +17,18 @@ Compatible with **XSOAR v6.x**. (v8 / Cortex XSIAM: most tools work; open an iss
 
 ## Features
 
-**18 MCP Tools**
+**30 MCP Tools** covering the full XSOAR REST API:
 
 - **Incidents** — search, get, create, update, close, reopen
-- **War Room** — add notes, fetch entries, **execute any integration command** synchronously
-- **Playbooks** — list, run, inspect task-level work plan
-- **Indicators (IOCs)** — search, get, create
-- **Metadata** — list integrations, list incident types, list users, server info
+- **War Room** — add notes, fetch entries, **execute any integration command**
+- **Playbooks** — list, run, inspect task-level work plan, **complete/assign/annotate tasks**
+- **Indicators (IOCs)** — search, get, create, edit, whitelist
+- **Evidence Board** — create, search
+- **XSOAR Lists** — get, save, list names (allow/block lists, lookup tables)
+- **Automations** — search available scripts
+- **Statistics** — query incident metrics by type/severity/owner
+- **Audit Logs** — search the audit trail
+- **Metadata** — list integrations, incident types, users, server info
 
 **4 MCP Prompts** (pre-built investigation workflows)
 
@@ -195,6 +200,24 @@ See [`docs/installation-powershell.md`](docs/installation-powershell.md) for det
 | `list_incident_types` | List configured incident types |
 | `list_users` | List XSOAR users |
 | `get_server_info` | Verify connectivity + version |
+| **Playbook Tasks** | |
+| `complete_task` | Mark a playbook task as complete |
+| `assign_task` | Assign a task to a user |
+| `add_task_note` | Add a note to a task |
+| **Indicators (extended)** | |
+| `edit_indicator` | Change score/comment/expiration |
+| `whitelist_indicators` | Mark IOCs as safe / false positive |
+| **Evidence** | |
+| `create_evidence` | Add evidence to an incident |
+| `search_evidence` | Search evidence records |
+| **XSOAR Lists** | |
+| `get_list_names` | List all XSOAR lists |
+| `get_list` | Get a named list (allow/block lists) |
+| `save_list` | Create or update a list |
+| **Discovery** | |
+| `search_automations` | Search available scripts |
+| `query_incident_statistics` | Aggregate incident stats |
+| `search_audit_logs` | Query the audit trail |
 
 ## Available Resources
 
@@ -258,7 +281,7 @@ For security issues, please use the [private security advisory](https://github.c
 
 `xsoar-mcp`, Palo Alto Cortex XSOAR için **MCP (Model Context Protocol) sunucusudur**. AI asistanların (Claude, ChatGPT vs.) doğal dilde XSOAR üzerinde incident yönetmesine, entegrasyon komutu çalıştırmasına, playbook koşturmasına ve IOC araştırmasına olanak sağlar.
 
-- 18 MCP tool, 4 prompt, 3 resource
+- 30 MCP tool, 4 prompt, 3 resource
 - Python CLI + PowerShell agent (13 AI sağlayıcı)
 - `XSOAR_READ_ONLY=true` ile yalnızca-okuma modu
 - Docker, PyPI, Smithery üzerinden dağıtım

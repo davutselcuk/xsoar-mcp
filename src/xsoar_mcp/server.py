@@ -397,6 +397,73 @@ def get_incident_work_plan(incident_id: str) -> dict:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+#   PLAYBOOK TASK MANAGEMENT TOOLS
+# ═════════════════════════════════════════════════════════════════════════════
+
+
+@mcp.tool()
+def complete_task(
+    incident_id: str,
+    task_id: str,
+    input_data: dict | None = None,
+) -> dict:
+    """
+    Mark a playbook task as complete. Enables AI-driven playbook execution
+    by completing manual tasks programmatically.
+
+    Args:
+        incident_id: Incident ID.
+        task_id: Task ID from get_incident_work_plan results.
+        input_data: Optional input fields for conditional/data-collection tasks.
+    """
+    if (blocked := _readonly_guard("complete_task")):
+        return blocked
+    try:
+        _xsoar().complete_task(incident_id, task_id, input_data)
+    except XSOARError as e:
+        return {"error": str(e)}
+    return {"completed": True, "incident_id": incident_id, "task_id": task_id}
+
+
+@mcp.tool()
+def assign_task(incident_id: str, task_id: str, assignee: str) -> dict:
+    """
+    Assign a playbook task to a specific user.
+
+    Args:
+        incident_id: Incident ID.
+        task_id: Task ID.
+        assignee: Username to assign the task to.
+    """
+    if (blocked := _readonly_guard("assign_task")):
+        return blocked
+    try:
+        _xsoar().assign_task(incident_id, task_id, assignee)
+    except XSOARError as e:
+        return {"error": str(e)}
+    return {"assigned": True, "task_id": task_id, "assignee": assignee}
+
+
+@mcp.tool()
+def add_task_note(incident_id: str, task_id: str, text: str) -> dict:
+    """
+    Add a note/comment to a specific playbook task.
+
+    Args:
+        incident_id: Incident ID.
+        task_id: Task ID.
+        text: Note text.
+    """
+    if (blocked := _readonly_guard("add_task_note")):
+        return blocked
+    try:
+        _xsoar().add_task_note(incident_id, task_id, text)
+    except XSOARError as e:
+        return {"error": str(e)}
+    return {"note_added": True, "task_id": task_id}
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 #   INDICATOR (IOC) TOOLS
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -486,6 +553,164 @@ def create_indicator(
     }
 
 
+@mcp.tool()
+def edit_indicator(
+    indicator_id: str,
+    score: int | None = None,
+    comment: str | None = None,
+    expiration: str | None = None,
+) -> dict:
+    """
+    Edit an existing indicator (change reputation, add comments, set expiration).
+
+    Args:
+        indicator_id: Indicator ID.
+        score: New score: 0=Unknown, 1=Good, 2=Suspicious, 3=Bad.
+        comment: New comment.
+        expiration: Expiration datetime (ISO 8601).
+    """
+    if (blocked := _readonly_guard("edit_indicator")):
+        return blocked
+    try:
+        _xsoar().edit_indicator(indicator_id, score=score, comment=comment,
+                                expiration=expiration)
+    except XSOARError as e:
+        return {"error": str(e)}
+    return {"updated": True, "id": indicator_id}
+
+
+@mcp.tool()
+def whitelist_indicators(indicator_ids: list[str]) -> dict:
+    """
+    Mark indicators as whitelisted (safe / false positive).
+    Whitelisted indicators are excluded from future detection.
+
+    Args:
+        indicator_ids: List of indicator IDs to whitelist.
+    """
+    if (blocked := _readonly_guard("whitelist_indicators")):
+        return blocked
+    try:
+        _xsoar().whitelist_indicators(indicator_ids)
+    except XSOARError as e:
+        return {"error": str(e)}
+    return {"whitelisted": True, "count": len(indicator_ids)}
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#   EVIDENCE TOOLS
+# ═════════════════════════════════════════════════════════════════════════════
+
+
+@mcp.tool()
+def create_evidence(
+    incident_id: str,
+    description: str,
+    data: str = "",
+    tags: list[str] | None = None,
+) -> dict:
+    """
+    Add evidence to an incident's evidence board (screenshots, logs, analysis notes).
+
+    Args:
+        incident_id: Incident ID.
+        description: Evidence description.
+        data: Evidence content/body.
+        tags: Optional tags, e.g. ["malware", "phishing"].
+    """
+    if (blocked := _readonly_guard("create_evidence")):
+        return blocked
+    try:
+        result = _xsoar().create_evidence(incident_id, description, data, tags)
+    except XSOARError as e:
+        return {"error": str(e)}
+    return {"created": True, "incident_id": incident_id,
+            "id": result.get("id")}
+
+
+@mcp.tool()
+def search_evidence(
+    incident_id: str = "",
+    query: str = "",
+    size: int = 50,
+) -> dict:
+    """
+    Search evidence records on the evidence board.
+
+    Args:
+        incident_id: Filter by incident ID (optional).
+        query: Search query.
+        size: Max results.
+    """
+    try:
+        result = _xsoar().search_evidence(incident_id, query, size)
+    except XSOARError as e:
+        return {"error": str(e)}
+
+    evidences = result.get("data") or result.get("entries") or []
+    return {
+        "count": len(evidences),
+        "evidence": [
+            {
+                "id": ev.get("id"),
+                "description": ev.get("description"),
+                "created": ev.get("created"),
+                "tags": ev.get("tags", []),
+            }
+            for ev in evidences[:50]
+        ],
+    }
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#   XSOAR LISTS TOOLS
+# ═════════════════════════════════════════════════════════════════════════════
+
+
+@mcp.tool()
+def get_list_names() -> dict:
+    """Get all XSOAR list names (allow/block lists, lookup tables, config lists)."""
+    try:
+        names = _xsoar().get_list_names()
+    except XSOARError as e:
+        return {"error": str(e)}
+    return {"count": len(names), "lists": names}
+
+
+@mcp.tool()
+def get_list(list_name: str) -> dict:
+    """
+    Get a named XSOAR list. Lists are shared key-value stores used in playbooks
+    for allow/block lists, lookup tables, and configuration.
+
+    Args:
+        list_name: List name.
+    """
+    try:
+        result = _xsoar().get_list(list_name)
+    except XSOARError as e:
+        return {"error": str(e)}
+    return {"name": list_name, "data": result}
+
+
+@mcp.tool()
+def save_list(list_name: str, data: str) -> dict:
+    """
+    Create or update a named XSOAR list.
+
+    Args:
+        list_name: List name.
+        data: List content (typically JSON string or newline-separated values).
+    """
+    if (blocked := _readonly_guard("save_list")):
+        return blocked
+    try:
+        _xsoar().save_list(list_name, data)
+    except XSOARError as e:
+        return {"error": str(e)}
+    return {"saved": True, "name": list_name}
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 #   INTEGRATION / METADATA TOOLS
 # ═════════════════════════════════════════════════════════════════════════════
@@ -532,6 +757,103 @@ def list_incident_types() -> dict:
             {"id": t.get("id"), "name": t.get("name"),
              "playbook": t.get("playbookId")}
             for t in types
+        ],
+    }
+
+
+@mcp.tool()
+def search_automations(search: str = "", size: int = 50) -> dict:
+    """
+    Search available automations (scripts) that can be called via
+    execute_integration_command.
+
+    Args:
+        search: Filter by name or keyword.
+        size: Max results.
+    """
+    try:
+        result = _xsoar().search_automations(query=search, size=size)
+    except XSOARError as e:
+        return {"error": str(e)}
+
+    scripts = result.get("scripts") or result.get("automation") or []
+    if isinstance(scripts, dict):
+        scripts = [scripts]
+    return {
+        "count": len(scripts),
+        "automations": [
+            {
+                "id": s.get("id"),
+                "name": s.get("name"),
+                "type": s.get("type"),
+                "tags": s.get("tags", []),
+                "description": (s.get("comment") or "")[:200],
+            }
+            for s in scripts[:50]
+        ],
+    }
+
+
+@mcp.tool()
+def query_incident_statistics(
+    query: str = "",
+    aggregate_by: str = "type",
+) -> dict:
+    """
+    Query incident statistics (counts by type, severity, owner, etc.).
+    Useful for SOC briefings and dashboards.
+
+    Examples:
+        query='created:>="now-24h"', aggregate_by="type"
+        query="status:1", aggregate_by="severity"
+
+    Args:
+        query: Lucene filter query.
+        aggregate_by: Field to group by (type, severity, owner, status).
+    """
+    try:
+        result = _xsoar().query_statistics(
+            query=query, aggregate_by=aggregate_by,
+        )
+    except XSOARError as e:
+        return {"error": str(e)}
+
+    groups = result.get("data") or result.get("groups") or []
+    return {
+        "total": result.get("total", 0),
+        "field": aggregate_by,
+        "groups": groups[:50] if isinstance(groups, list) else groups,
+    }
+
+
+@mcp.tool()
+def search_audit_logs(query: str = "", size: int = 50) -> dict:
+    """
+    Query the XSOAR audit trail — who did what, when.
+    Useful for compliance, forensics, and tracking analyst actions.
+
+    Args:
+        query: Filter (e.g. user, action type).
+        size: Max entries.
+    """
+    try:
+        result = _xsoar().search_audit_logs(query=query, size=size)
+    except XSOARError as e:
+        return {"error": str(e)}
+
+    audits = result.get("audits") or result.get("data") or []
+    return {
+        "count": len(audits),
+        "audits": [
+            {
+                "id": a.get("id"),
+                "user": a.get("user"),
+                "action": a.get("action"),
+                "resource": a.get("resourceName"),
+                "created": a.get("created"),
+                "details": (a.get("details") or "")[:300],
+            }
+            for a in audits[:50]
         ],
     }
 

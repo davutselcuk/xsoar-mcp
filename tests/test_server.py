@@ -168,6 +168,94 @@ class TestMcpTools:
         r = server_module.add_war_room_entry("INC-001", "note")
         assert r["entry_added"] is True
 
+    # ── Task management
+
+    def test_complete_task(self, server_module):
+        _mock_client(server_module, complete_task={"status": "ok"})
+        r = server_module.complete_task("INC-001", "task-1")
+        assert r["completed"] is True
+        assert r["task_id"] == "task-1"
+
+    def test_assign_task(self, server_module):
+        _mock_client(server_module, assign_task={"status": "ok"})
+        r = server_module.assign_task("INC-001", "task-1", "analyst1")
+        assert r["assigned"] is True
+        assert r["assignee"] == "analyst1"
+
+    def test_add_task_note(self, server_module):
+        _mock_client(server_module, add_task_note={"status": "ok"})
+        r = server_module.add_task_note("INC-001", "task-1", "Investigation note")
+        assert r["note_added"] is True
+
+    # ── Indicator edit/whitelist
+
+    def test_edit_indicator(self, server_module):
+        _mock_client(server_module, edit_indicator={"status": "ok"})
+        r = server_module.edit_indicator("IOC-1", score=3, comment="malicious")
+        assert r["updated"] is True
+
+    def test_whitelist_indicators(self, server_module):
+        _mock_client(server_module, whitelist_indicators={"status": "ok"})
+        r = server_module.whitelist_indicators(["IOC-1", "IOC-2"])
+        assert r["whitelisted"] is True
+        assert r["count"] == 2
+
+    # ── Evidence
+
+    def test_create_evidence(self, server_module):
+        _mock_client(server_module, create_evidence={"id": "EV-1"})
+        r = server_module.create_evidence("INC-001", "Screenshot of malware")
+        assert r["created"] is True
+
+    def test_search_evidence(self, server_module):
+        entries = [{"id": "EV-1", "description": "Screenshot", "tags": ["malware"]}]
+        _mock_client(server_module, search_evidence={"data": entries})
+        r = server_module.search_evidence(incident_id="INC-001")
+        assert r["count"] == 1
+        assert r["evidence"][0]["description"] == "Screenshot"
+
+    # ── Lists
+
+    def test_get_list_names(self, server_module):
+        _mock_client(server_module, get_list_names=["AllowList", "BlockList"])
+        r = server_module.get_list_names()
+        assert r["count"] == 2
+
+    def test_get_list(self, server_module):
+        _mock_client(server_module, get_list={"items": ["1.1.1.1", "2.2.2.2"]})
+        r = server_module.get_list("AllowList")
+        assert r["name"] == "AllowList"
+
+    def test_save_list(self, server_module):
+        _mock_client(server_module, save_list={"status": "ok"})
+        r = server_module.save_list("BlockList", '["bad.com"]')
+        assert r["saved"] is True
+
+    # ── Automations
+
+    def test_search_automations(self, server_module):
+        scripts = [{"id": "S1", "name": "IPReputation", "comment": "Check IP rep"}]
+        _mock_client(server_module, search_automations={"scripts": scripts})
+        r = server_module.search_automations(search="IP")
+        assert r["count"] == 1
+        assert r["automations"][0]["name"] == "IPReputation"
+
+    # ── Statistics
+
+    def test_query_incident_statistics(self, server_module):
+        _mock_client(server_module, query_statistics={"data": [{"type": "Phishing", "count": 5}], "total": 5})
+        r = server_module.query_incident_statistics(aggregate_by="type")
+        assert r["total"] == 5
+
+    # ── Audit logs
+
+    def test_search_audit_logs(self, server_module):
+        audits = [{"id": "A1", "user": "admin", "action": "login", "created": "2024-01-01"}]
+        _mock_client(server_module, search_audit_logs={"audits": audits})
+        r = server_module.search_audit_logs()
+        assert r["count"] == 1
+        assert r["audits"][0]["user"] == "admin"
+
 
 # ── Read-only mode ────────────────────────────────────────────────────────────
 
@@ -199,6 +287,18 @@ class TestReadOnlyMode:
 
     def test_execute_command_blocked(self, readonly_server):
         r = readonly_server.execute_integration_command("INC-1", "!ip ip=1.1.1.1")
+        assert r["error"] == "read_only_mode"
+
+    def test_complete_task_blocked(self, readonly_server):
+        r = readonly_server.complete_task("INC-1", "task-1")
+        assert r["error"] == "read_only_mode"
+
+    def test_save_list_blocked(self, readonly_server):
+        r = readonly_server.save_list("BlockList", "data")
+        assert r["error"] == "read_only_mode"
+
+    def test_whitelist_blocked(self, readonly_server):
+        r = readonly_server.whitelist_indicators(["IOC-1"])
         assert r["error"] == "read_only_mode"
 
     def test_read_tool_still_works(self, readonly_server):

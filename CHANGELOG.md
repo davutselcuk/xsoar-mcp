@@ -4,7 +4,7 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] — 2026-04-15
+## [0.2.0] — 2026-04-16
 
 ### Added
 - **MCP Prompts**: `investigate_incident`, `triage_phishing`, `hunt_ioc`,
@@ -13,13 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `xsoar://incidents/open`
 - **Read-only mode**: `XSOAR_READ_ONLY=true` disables all write tools
 - **Debug logging**: `XSOAR_DEBUG=true` enables verbose log output
-- **New tools**:
+- **30 MCP tools** covering the full XSOAR REST API:
   - `execute_integration_command` — run any XSOAR integration command
   - `reopen_incident`
   - `get_incident_work_plan` — playbook task status
-  - `create_indicator`
-  - `list_integrations`
-  - `list_incident_types`
+  - `complete_task`, `assign_task`, `add_task_note` — playbook task management
+  - `create_indicator`, `edit_indicator`, `whitelist_indicators`
+  - `create_evidence`, `search_evidence` — evidence board
+  - `get_list`, `save_list`, `get_list_names` — XSOAR lists
+  - `search_automations` — discover scripts
+  - `query_incident_statistics` — SOC metrics
+  - `search_audit_logs` — compliance/forensics
+  - `list_integrations`, `list_incident_types`
 - Retry logic for transient HTTP errors (5xx, 429, network errors)
 - `smithery.yaml` for [smithery.ai](https://smithery.ai) registry
 - GitHub Issue & PR templates
