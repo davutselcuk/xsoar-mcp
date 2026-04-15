@@ -1,4 +1,4 @@
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 WORKDIR /build
 COPY pyproject.toml README.md ./
@@ -8,7 +8,7 @@ RUN pip install --no-cache-dir --upgrade pip build && \
     python -m build --wheel
 
 # ── runtime ────────────────────────────────────────────────────────────────
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 LABEL org.opencontainers.image.title="xsoar-mcp"
 LABEL org.opencontainers.image.description="MCP server for Palo Alto Cortex XSOAR"
